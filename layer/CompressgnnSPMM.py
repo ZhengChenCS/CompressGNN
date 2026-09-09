@@ -69,9 +69,9 @@ class Compressgnn_SPMM_Function(torch.autograd.Function):
             out = spmm_func(v2r_vlist, v2v_elist, v2v_value, rule_out, "rowbalance", out)
         else:
             rule_out = spmm_func(r2v_vlist, r2v_elist, r2v_value, grad_output, "nnzbalance_rowcache", None)
-            for i in range(graph.step, 0, 1):
-                vlist, elist, value = graph.r2r_graph[i-1].csc()                                                      
-                rult_out = spmm_func(vlist, elist, value, rule_out, "nnzbalance_rowcache", rule_out)
+            for i in range(graph.step, 0, -1):
+                vlist, elist, value = graph.r2r_graph[i-1].csc()
+                rule_out = spmm_func(vlist, elist, value, rule_out, "nnzbalance_rowcache", rule_out)
             out = spmm_func(v2v_vlist, v2v_elist, v2v_value, grad_output, "nnzbalance_rowcache", None)
             out = spmm_func(v2r_vlist, v2r_elist, v2r_value, rule_out, "nnzbalance_rowcache", out)
         return None, out
