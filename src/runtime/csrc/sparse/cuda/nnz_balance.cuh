@@ -13,7 +13,7 @@ __global__ void spmm_nnzbalance_parreduce_kernel(
     int64_t warpIdx = thread_idx >> 5;
     int laneIdx = thread_idx & (32 - 1);
 
-    if (warpIdx * NE_PER_WARP > nnz)
+    if (warpIdx * NE_PER_WARP >= nnz)
         return;
 
     int64_t k;
@@ -143,7 +143,7 @@ spmm_nnzbalance_rowcache_kernel(const int64_t *vlist, const int64_t *elist,
                                 const int col_num, const int64_t nnz) {
     int64_t thread_id = blockIdx.x * blockDim.x + threadIdx.x;
     int64_t warpIdx = thread_id >> 5;
-    if (warpIdx * NE_PER_WARP > nnz)
+    if (warpIdx * NE_PER_WARP >= nnz)
         return;
     int laneIdx = thread_id & (32 - 1);
     int mat_col_idx = (blockIdx.y << 5) + laneIdx;
@@ -173,7 +173,7 @@ spmm_nnzbalance_rowcache_kernel(const int64_t *vlist, const int64_t *elist,
         }
 #pragma unroll
         for (int jj = 0; jj < WARP_SIZE; ++jj) {
-            if (mat_rows[jj] != -1) {
+            if (laneIdx < leftover && mat_rows[jj] != -1) {
                 val = __ldg(mat_data + mat_rows[jj] + mat_col_idx);
                 results[jj] = val * vals[jj];
             }

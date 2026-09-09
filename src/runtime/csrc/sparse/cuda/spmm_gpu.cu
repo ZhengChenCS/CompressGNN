@@ -3,6 +3,7 @@
 #include "nnz_balance.cuh"
 #include "row_balance.cuh"
 #include <ATen/cuda/CUDAContext.h>
+#include <c10/cuda/CUDAException.h>
 
 torch::Tensor spmm_cuda(torch::Tensor vlist, torch::Tensor elist,
                         torch::Tensor value, torch::Tensor mat,
@@ -24,6 +25,13 @@ torch::Tensor spmm_cuda(torch::Tensor vlist, torch::Tensor elist,
         sizes[0] = vlist.size(-1) - 1;
         out = torch::zeros(sizes, mat.options());
     }
+    TORCH_CHECK(method == "rowbalance_parreduce" || method == "rowbalance_seqreduce" ||
+                method == "rowbalance_rowcache" || method == "nnzbalance_parreduce" ||
+                method == "nnzbalance_seqreduce" || method == "nnzbalance_rowcache",
+                "Invalid SpMM method for CUDA: ", method);
+    // Empty sparse matrices contribute zero; avoid launching a zero-sized grid.
+    if (elist.numel() == 0 || out.numel() == 0)
+        return out;
     auto stream = at::cuda::getCurrentCUDAStream();
 
     AT_DISPATCH_FLOATING_TYPES(
@@ -93,6 +101,7 @@ torch::Tensor spmm_cuda(torch::Tensor vlist, torch::Tensor elist,
                 std::cerr << "Unvaild spmm method for CUDA." << std::endl;
             }
         }));
-    cudaDeviceSynchronize();
+    // The current stream orders dependent propagation kernels without a host wait.
+    C10_CUDA_KERNEL_LAUNCH_CHECK();
     return out;
 }
