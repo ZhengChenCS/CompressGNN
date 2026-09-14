@@ -232,7 +232,7 @@ New `CompressgnnData` objects use the exact batch compressor from
 submodule. The default minimum pair frequency is now **16**, with **12 rounds**.
 `compression_backend="auto"` chooses CUDA when the optional extension is installed
 and a CUDA device is usable; otherwise it uses the new CPU backend. This replaces
-the loader's default greedy Re-Pair construction. Existing saved graphs remain usable.
+the previous greedy Re-Pair construction. Existing saved graphs remain usable.
 
 Initialize the dependency and rebuild the offline extension:
 
@@ -259,7 +259,7 @@ it also initializes the dependency and stops on build failures.
 ```python
 data = CompressgnnData(
     x, edge_index, y, train_mask, valid_mask, test_mask,
-    compression_backend="auto",  # or "cpu", "cuda", "legacy"
+    compression_backend="auto",  # or "cpu", "cuda"
     compression_threads=20,     # CPU only; tune to the host
     compression_rounds=12,
     min_pair_frequency=16,
@@ -275,10 +275,9 @@ postprocessing steps or guarantees unchanged training time.
 
 CUDA allocation/kernel errors propagate; `auto` does not silently hide a runtime
 failure by retrying on the CPU. Explicit `cuda` selection fails clearly when the
-extension/device is unavailable. Batch frequency must be at least 3. For the original
-construction use `compression_backend="legacy", min_pair_frequency=2`. The low-level
-`compressgnn_offline.compress_csr` and `compress_csr_fast` APIs remain available for
-compatibility; the legacy implementation is not safe for concurrent threaded calls.
+extension/device is unavailable. Batch frequency must be at least 3. Only the new
+batch compressor is supported; the old `legacy` backend and `compress_csr` /
+`compress_csr_fast` APIs have been removed. Use `compress_csr_batch` for direct calls.
 
 Low-level new CPU API (returns rowptr, col, original vertex count, rule count):
 

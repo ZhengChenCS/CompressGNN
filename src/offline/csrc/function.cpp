@@ -1,6 +1,5 @@
 #include "add_self_loop.h"
 #include "check.h"
-#include "compress.h"
 #include "convert.h"
 #include "depth_filter.h"
 #include "filter.h"
@@ -25,11 +24,6 @@ void bind_batch_cpu(pybind11::module_& m);
 
 PYBIND11_MODULE(compressgnn_offline, m) {
   bind_batch_cpu(m);
-  m.def("compress_csr_fast", &compress_csr_fast,
-        py::arg("vlist"), py::arg("elist"), py::arg("max_symbol"),
-        py::arg("min_pair_frequency"),
-        "Exact graph expansion with early stopping of low-frequency rules");
-  m.def("compress_csr", &compress_csr, "Compressing graph with csr format");
   m.def("gen_edge_order", &gen_edge_order,
         "generate edge order for compressed data with coo format");
   m.def("gen_vertex_order_csr", &gen_vertex_order_csr,

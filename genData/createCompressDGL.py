@@ -19,8 +19,8 @@ def reorder_data(edge_index):
         return None, None, None
 
 def compress(vlist, elist, threshold=4, max_depth=8, min_edge=100000):
-    new_vlist, new_elist, new_vertex_cnt, new_rule_cnt = compressgnn_offline.compress_csr(
-        vlist, elist, vlist.shape[0]-1)
+    new_vlist, new_elist, new_vertex_cnt, new_rule_cnt = compressgnn_offline.compress_csr_batch(
+        vlist, elist)
     print(
         "compression ratio: {} / {} = {:.4f}".format(
             vlist.shape[0] +

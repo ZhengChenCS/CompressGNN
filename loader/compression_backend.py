@@ -4,8 +4,8 @@ import operator
 
 
 def resolve_backend(backend):
-    if backend not in ('auto', 'cpu', 'cuda', 'legacy'):
-        raise ValueError("compression_backend must be 'auto', 'cpu', 'cuda', or 'legacy'")
+    if backend not in ('auto', 'cpu', 'cuda'):
+        raise ValueError("compression_backend must be 'auto', 'cpu', or 'cuda'")
     if backend in ('auto', 'cuda'):
         try:
             cuda = importlib.import_module('compressgnn_batch_cuda')
@@ -29,15 +29,12 @@ def compress_graph_csr(vlist, elist, min_pair_frequency=16,
     if threads < 1 or rounds < 1:
         raise ValueError('compression_threads and compression_rounds must be positive')
     selected = resolve_backend(backend)
-    minimum = 2 if selected == 'legacy' else 3
-    if frequency < minimum:
-        raise ValueError('Batch compression needs min_pair_frequency >= 3; use backend="legacy" for frequency 2')
+    if frequency < 3:
+        raise ValueError('Batch compression needs min_pair_frequency >= 3')
     if selected == 'cuda':
         # Runtime failures (including OOM) propagate, rather than silently retrying.
         cuda = importlib.import_module('compressgnn_batch_cuda')
         return cuda.compress_csr_batch(vlist, elist, rounds=rounds, min_pair_frequency=frequency)
     offline = importlib.import_module('compressgnn_offline')
-    if selected == 'cpu':
-        return offline.compress_csr_batch(vlist, elist, threads=threads, rounds=rounds,
-                                          min_pair_frequency=frequency)
-    return offline.compress_csr_fast(vlist, elist, len(vlist)-1, frequency)
+    return offline.compress_csr_batch(vlist, elist, threads=threads, rounds=rounds,
+                                      min_pair_frequency=frequency)

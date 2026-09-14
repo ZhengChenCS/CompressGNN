@@ -36,6 +36,9 @@ def check(rows, packed, ordered=True):
         assert actual==row if ordered else Counter(actual)==Counter(row)
 
 
+assert not hasattr(offline, 'compress_csr')
+assert not hasattr(offline, 'compress_csr_fast')
+
 cuda = dispatch.resolve_backend('auto') == 'cuda'
 backends = ['cpu'] + (['cuda'] if cuda else [])
 rng=np.random.default_rng(17)
@@ -69,7 +72,7 @@ with mock.patch.object(dispatch.importlib,'import_module',side_effect=lambda nam
     else:raise AssertionError('Explicit missing CUDA backend accepted')
 with mock.patch.object(dispatch.importlib,'import_module',return_value=mock.Mock(is_available=lambda:False)):
     assert dispatch.resolve_backend('auto')=='cpu'
-for bad in ['wrong',None]:
+for bad in ['wrong', 'legacy', None]:
     try:dispatch.resolve_backend(bad)
     except ValueError:pass
     else:raise AssertionError('Invalid backend accepted')

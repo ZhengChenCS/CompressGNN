@@ -1,4 +1,4 @@
-"""Exact expansion and legacy-equivalence checks for optional fast construction."""
+"""Exact expansion checks for batch construction and post-filters."""
 from collections import Counter
 import numpy as np
 import compressgnn_offline as lib
@@ -38,21 +38,17 @@ for n in [1, 2, 17, 128, 512]:
     for rows in fixtures:
         v = np.array([0] + list(np.cumsum([len(x) for x in rows])), dtype=np.int32)
         e = np.array([j for row in rows for j in row], dtype=np.int32)
-        original = lib.compress_csr(v, e, n)
-        for freq in [2, 4, 8, 16, 32]:
-            packed = lib.compress_csr_fast(v, e, n, freq)
+        for freq in [3, 4, 8, 16, 32]:
+            packed = lib.compress_csr_batch(v, e, min_pair_frequency=freq)
             check(rows, packed)
-            if freq == 2:
-                assert np.array_equal(original[0], packed[0])
-                assert np.array_equal(original[1], packed[1])
             filtered = lib.filter_csr(*packed, 16)
             check(rows, filtered)
             depth = lib.depth_filter_csr(*filtered, 3, 100000)
             check(rows, depth)
             checks += 1
-for freq in [-1, 0, 1]:
+for freq in [-1, 0, 1, 2]:
     try:
-        lib.compress_csr_fast(np.array([0, 0],np.int32),np.array([],np.int32),1,freq)
+        lib.compress_csr_batch(np.array([0, 0],np.int32),np.array([],np.int32),min_pair_frequency=freq)
     except ValueError:
         checks += 1
     else:

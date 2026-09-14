@@ -4,7 +4,7 @@ from torch import Tensor
 import copy
 from compressgnn_offline import add_self_loop_coo, add_self_loop_csr
 from compressgnn_offline import get_norm_degree, gcn_norm_coo_compress, gcn_norm_csr_compress
-from compressgnn_offline import compress_csr, check_csr, depth_filter_csr
+from compressgnn_offline import check_csr, depth_filter_csr
 from compressgnn_offline import coo2csr, csr2coo
 from compressgnn_offline import filter_csr
 from compressgnn_offline import gen_mask_vertex, gen_mask_edge
