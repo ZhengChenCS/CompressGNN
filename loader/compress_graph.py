@@ -16,9 +16,11 @@ class CompressGraph():
         r2v_elist = torch.from_numpy(r2v_graph[1])
         r2v_value = torch.from_numpy(r2v_graph[2])
         r2r_list = topo_partition(r2r_graph[0], r2r_graph[1], r2r_graph[2])   
-        self.v2v_graph = SparseTensor(rowptr=v2v_vlist, col=v2v_elist, value=v2v_value)
-        self.v2r_graph = SparseTensor(rowptr=v2r_vlist, col=v2r_elist, value=v2r_value)
-        self.r2v_graph = SparseTensor(rowptr=r2v_vlist, col=r2v_elist, value=r2v_value)
+        rule_cnt = r2v_vlist.numel() - 1
+        # Preserve dimensions even when a block has no edges or trailing columns.
+        self.v2v_graph = SparseTensor(rowptr=v2v_vlist, col=v2v_elist, value=v2v_value, sparse_sizes=(vertex_cnt, vertex_cnt))
+        self.v2r_graph = SparseTensor(rowptr=v2r_vlist, col=v2r_elist, value=v2r_value, sparse_sizes=(vertex_cnt, rule_cnt))
+        self.r2v_graph = SparseTensor(rowptr=r2v_vlist, col=r2v_elist, value=r2v_value, sparse_sizes=(rule_cnt, vertex_cnt))
         self.step = len(r2r_list)
         self.r2r_graph = []
         r2r_vlists = []
@@ -29,7 +31,7 @@ class CompressGraph():
             r2r_vlist = torch.from_numpy(r2r_list[i][0])
             r2r_elist = torch.from_numpy(r2r_list[i][1])
             r2r_value = torch.from_numpy(r2r_list[i][2])
-            bi_graph = SparseTensor(rowptr=r2r_vlist, col=r2r_elist, value=r2r_value)
+            bi_graph = SparseTensor(rowptr=r2r_vlist, col=r2r_elist, value=r2r_value, sparse_sizes=(rule_cnt, rule_cnt))
             self.r2r_graph.append(bi_graph)
         vertex_degree, rule_degree = gen_degree(v2v_vlist, v2v_elist,
                                                 v2r_vlist, v2r_elist, 

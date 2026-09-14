@@ -223,3 +223,79 @@ python tests/test_transformation.py
 
 The checks cover CPU/CUDA mean gradients, LSH assignments, epoch/cache behavior,
 CUDA streams, fused reconstruction, and double-precision gradient checks.
+
+
+## Offline compression with CompressGraph
+
+New `CompressgnnData` objects use the exact batch compressor from
+[CompressGraph](https://github.com/ZhengChenCS/CompressGraph), pinned as a Git
+submodule. The default minimum pair frequency is now **16**, with **12 rounds**.
+`compression_backend="auto"` chooses CUDA when the optional extension is installed
+and a CUDA device is usable; otherwise it uses the new CPU backend. This replaces
+the loader's default greedy Re-Pair construction. Existing saved graphs remain usable.
+
+Initialize the dependency and rebuild the offline extension:
+
+```bash
+git submodule update --init src/offline/vendor/CompressGraph
+cd src/offline
+python setup.py install
+```
+
+For the optional GPU compressor (no PyTorch C++ ABI dependency), build with a CUDA
+toolkit supporting C++17/CUB and an architecture appropriate to your GPU:
+
+```bash
+COMPRESSGNN_BUILD_CUDA=1 COMPRESSGNN_CUDA_HOME=/usr/local/cuda \
+  COMPRESSGNN_CUDA_ARCH=86 python setup.py install
+```
+
+`COMPRESSGNN_CUDA_HOME` controls this standalone compressor only; it does not change
+the CUDA toolkit used to build the training/runtime extension. The CUDA build emits
+native code and PTX for the requested architecture (default 75). CPU-only installation
+remains supported. To install all existing project extensions, use `bash install.sh`;
+it also initializes the dependency and stops on build failures.
+
+```python
+data = CompressgnnData(
+    x, edge_index, y, train_mask, valid_mask, test_mask,
+    compression_backend="auto",  # or "cpu", "cuda", "legacy"
+    compression_threads=20,     # CPU only; tune to the host
+    compression_rounds=12,
+    min_pair_frequency=16,
+)
+```
+
+The selected backend is stored in `data.compression_backend`. Contribution filtering,
+depth filtering, normalization and the existing COO/CSR runtime partitioning still run
+after graph construction. Batch output expands exactly to the original adjacency
+sequence, but rule selection, compression ratio and downstream execution costs can
+change. Do not assume the previously measured raw GPU construction time covers these
+postprocessing steps or guarantees unchanged training time.
+
+CUDA allocation/kernel errors propagate; `auto` does not silently hide a runtime
+failure by retrying on the CPU. Explicit `cuda` selection fails clearly when the
+extension/device is unavailable. Batch frequency must be at least 3. For the original
+construction use `compression_backend="legacy", min_pair_frequency=2`. The low-level
+`compressgnn_offline.compress_csr` and `compress_csr_fast` APIs remain available for
+compatibility; the legacy implementation is not safe for concurrent threaded calls.
+
+Low-level new CPU API (returns rowptr, col, original vertex count, rule count):
+
+```python
+from compressgnn_offline import compress_csr_batch
+v, e, n, nr = compress_csr_batch(rowptr, col, threads=20, rounds=12,
+                                min_pair_frequency=16)
+```
+
+The optional `compressgnn_batch_cuda.compress_csr_batch` takes the same arguments
+except `threads`. Input/output are CPU NumPy integer arrays; GPU transfer and device
+allocation occur inside each call. No subprocess, temporary graph files or runtime
+Git download is used during compression.
+
+After rebuilding, run:
+
+```bash
+python tests/test_offline_compression.py
+python tests/test_batch_compression.py
+```

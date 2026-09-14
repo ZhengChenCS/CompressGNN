@@ -7,6 +7,7 @@
 #include <ctime>
 #include <iostream>
 #include <string>
+#include <stdexcept>
 #include <unordered_map>
 #include <vector>
 
@@ -102,7 +103,7 @@ void prepare(std::vector<int> &inter) {
     purgeHeap(&Heap);
 }
 
-void repair(std::vector<int> &inter, std::vector<Tpair> &rule) {
+void repair(std::vector<int> &inter, std::vector<Tpair> &rule, int min_pair_frequency = 2) {
     int oid, id, cpos;
     Trecord *rec, *orec;
     Tpair pair;
@@ -111,6 +112,9 @@ void repair(std::vector<int> &inter, std::vector<Tpair> &rule) {
         if (oid == -1)
             break; // the end!!
         orec = &Rec.records[oid];
+        // Stop the greedy search before constructing low-frequency rules.
+        // Unreplaced symbols remain explicit, preserving exact expansion.
+        if (orec->freq < min_pair_frequency) break;
         cpos = orec->cpos; // first position in C
         rule.push_back(orec->pair);
 #ifdef DEBUG
@@ -259,9 +263,10 @@ inline int convert(int ID, int vertex_cnt) {
 }
 
 std::tuple<py::array_t<int>, py::array_t<int>, int, int>
-compress_csr(py::array_t<int> &np_input_vlist,
+compress_csr_impl(py::array_t<int> &np_input_vlist,
              py::array_t<int> &np_input_elist,
-             int max_symbol) {
+             int max_symbol, int min_pair_frequency) {
+    if (min_pair_frequency < 2) throw std::invalid_argument("min_pair_frequency must be >= 2");
     double start = timestamp();
     std::vector<int> vlist;
     std::vector<int> elist;
@@ -270,14 +275,17 @@ compress_csr(py::array_t<int> &np_input_vlist,
     numpy2vector1D(np_input_elist, elist);
     int vertex_cnt = vlist.size() - 1;
     std::vector<int> inter;
+    inter.reserve(elist.size() + vlist.size());
     insert_spliter(vlist, elist, inter, max_symbol);
     // alph = vertex_cnt * 2;
     alph = max_symbol * 2;
     prepare(inter);
     std::vector<Tpair> rule;
-    repair(inter, rule);
+    repair(inter, rule, min_pair_frequency);
     std::vector<int> back_vlist;
     std::vector<int> back_elist;
+    back_vlist.reserve(vlist.size() + rule.size());
+    back_elist.reserve(c + 2 * rule.size());
     back_vlist.push_back(0);
     int i = 0;
     int e_size = 0;
@@ -313,7 +321,21 @@ compress_csr(py::array_t<int> &np_input_vlist,
     py::array_t<int> np_vlist = vector2numpy1D(back_vlist);
     py::array_t<int> np_elist = vector2numpy1D(back_elist);
     // return {back_vlist, back_elist, vertex_cnt, rule_cnt};
+    destroyHeap(&Heap);
+    destroyHash(&Hash);
+    destroyRecords(&Rec);
+    free(L);
+    L = nullptr;
     double end = timestamp();
     fprintf(stderr, "compress time:%lf\n", end - start);
     return {np_vlist, np_elist, vertex_cnt, rule_cnt};
+}
+
+std::tuple<py::array_t<int>, py::array_t<int>, int, int>
+compress_csr(py::array_t<int> &vlist, py::array_t<int> &elist, int max_symbol) {
+    return compress_csr_impl(vlist, elist, max_symbol, 2);
+}
+std::tuple<py::array_t<int>, py::array_t<int>, int, int>
+compress_csr_fast(py::array_t<int> &vlist, py::array_t<int> &elist, int max_symbol, int min_pair_frequency) {
+    return compress_csr_impl(vlist, elist, max_symbol, min_pair_frequency);
 }

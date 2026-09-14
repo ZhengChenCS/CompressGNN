@@ -1,0 +1,3 @@
+[submodule "src/offline/vendor/CompressGraph"]
+	path = src/offline/vendor/CompressGraph
+	url = https://github.com/ZhengChenCS/CompressGraph.git

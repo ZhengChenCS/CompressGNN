@@ -1,0 +1,4 @@
+recursive-include csrc *.h *.hpp *.cpp *.cc
+recursive-include bindings *.hpp *.cpp
+recursive-include vendor/CompressGraph/core/batch *.hpp *.cpp *.cu
+include vendor/CompressGraph/LICENSE

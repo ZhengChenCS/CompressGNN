@@ -17,9 +17,19 @@ from compressgnn_offline import hybird_partition
 from compress_graph import CompressGraph
 
 
-def compress(vlist, elist, threshold, max_depth, min_edge):
-    new_vlist, new_elist, new_vertex_cnt, new_rule_cnt = compress_csr(
-        vlist, elist, vlist.shape[0]-1)
+if __package__:
+    from .compression_backend import compress_graph_csr, resolve_backend
+else:
+    from compression_backend import compress_graph_csr, resolve_backend
+
+
+def compress(vlist, elist, threshold, max_depth, min_edge, min_pair_frequency=16,
+             compression_backend='auto', compression_threads=4, compression_rounds=12):
+    selected = resolve_backend(compression_backend)
+    print('Compression backend: {}'.format(selected))
+    result = compress_graph_csr(vlist, elist, min_pair_frequency, selected,
+                                compression_threads, compression_rounds)
+    new_vlist, new_elist, new_vertex_cnt, new_rule_cnt = result
     print(
         "compression ratio: {} / {} = {:.4f}".format(
             vlist.shape[0] +
@@ -55,7 +65,11 @@ class CompressgnnData():
                  max_depth: int = 3,
                  min_edge: int = 1000000,
                  threshold: int = 16,
-                 homo: bool = False):
+                 homo: bool = False,
+                 min_pair_frequency: int = 16,
+                 compression_backend: str = "auto",
+                 compression_threads: int = 4,
+                 compression_rounds: int = 12):
         x = x.astype(np.float32)
         self.x = torch.as_tensor(x)
         self.y = torch.as_tensor(np.array(y))
@@ -65,6 +79,10 @@ class CompressgnnData():
         self.vertex_cnt = self.x.size()[0]
         self.feature_dim = self.x.size()[1]
         self.graph_type = graph_type
+        self.min_pair_frequency = min_pair_frequency
+        self.compression_backend = resolve_backend(compression_backend)
+        self.compression_threads = compression_threads
+        self.compression_rounds = compression_rounds
         if self.graph_type == "coo":
             if add_self_loop:
                 src = copy.deepcopy(edge_index[0])
@@ -80,7 +98,8 @@ class CompressgnnData():
             vlist, elist = coo2csr(
                 edge_index[0], edge_index[1], self.vertex_cnt)
             new_vlist, new_elist, new_vertex_cnt, new_rule_cnt = compress(
-                vlist, elist, threshold, max_depth, min_edge)
+                vlist, elist, threshold, max_depth, min_edge, min_pair_frequency,
+                self.compression_backend, compression_threads, compression_rounds)
             self.vertex_cnt = new_vertex_cnt
             self.rule_cnt = new_rule_cnt
             self.edge_cnt = new_elist.shape[0]
@@ -97,7 +116,7 @@ class CompressgnnData():
                     self.vertex_cnt,
                     self.rule_cnt)
             else:
-                edge_weight = np.ones(self.edge_cnt, dtype=np.float)
+                edge_weight = np.ones(self.edge_cnt, dtype=np.float32)
             '''
             Generate multi phase tensor
             '''
@@ -128,7 +147,8 @@ class CompressgnnData():
             Compression
             '''
             new_vlist, new_elist, vertex_cnt, rule_cnt = compress(
-                edge_index[0], edge_index[1], threshold, max_depth, min_edge)
+                edge_index[0], edge_index[1], threshold, max_depth, min_edge, min_pair_frequency,
+                self.compression_backend, compression_threads, compression_rounds)
             self.vertex_cnt = vertex_cnt
             self.rule_cnt = rule_cnt
             self.edge_cnt = new_elist.shape[0]
@@ -144,12 +164,13 @@ class CompressgnnData():
                 edge_weight = gcn_norm_csr_compress(
                     edge_index[0], edge_index[1], norm_degree, self.vertex_cnt, self.rule_cnt)
             else:
-                edge_weight = np.ones(self.edge_cnt, dtype=np.float)
+                edge_weight = np.ones(self.edge_cnt, dtype=np.float32)
             edge_weight = torch.as_tensor(edge_weight)
             graph = SparseTensor(
                 rowptr=edge_index[0],
                 col=edge_index[1],
-                value=edge_weight)
+                value=edge_weight,
+                sparse_sizes=(vertex_cnt + rule_cnt, vertex_cnt + rule_cnt))
             '''
             Generate multi phase sparse tensor
             '''
