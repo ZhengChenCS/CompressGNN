@@ -1,6 +1,7 @@
 # CompressGNN
-This is the KDD'25 repository for submitting paper **CompressGNN: Accelerating Graph Neural Network Training via
-Hierarchical Compression**.
+CompressGNN is a framework for accelerating graph neural network (GNN) training through hierarchical compression. It reduces redundant neighbor aggregation by sharing graph propagation computations and reduces repeated feature transformations by grouping similar node features.
+
+The project provides graph preprocessing tools, optimized CPU/GPU operators, and PyTorch model integrations. Propagation and transformation compression can be used independently or together, with configurable clustering reuse to explore training-time, memory, and accuracy trade-offs.
 
 ## Code Structure
 
