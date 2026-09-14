@@ -14,15 +14,18 @@ import time
 
 
 class SGC(torch.nn.Module):
-    def __init__(self, in_features, out_features, K, param_H=1):
+    def __init__(self, in_features, out_features, K, param_H=1, refresh_interval=1):
         super().__init__()
         self.lin1 = torch.nn.Linear(in_features=in_features, out_features=in_features)
         self.lin2 = torch.nn.Linear(in_features=in_features, out_features=out_features)
         self.P = KPUPropagate(cached=True, K=K)
         # self.P = PUPropagate(cached=True, K=K)
-        self.cluster = Compressgnn_Cluster(in_feature=in_features, param_H=param_H, training=True, cache=True, index_cache=False)
+        self.cluster = Compressgnn_Cluster(in_feature=in_features, param_H=param_H, training=True, cache=True, index_cache=False, refresh_interval=refresh_interval)
         self.reconstruct = Compressgnn_Reconstruct()
         self.p_time = 0
+
+    def set_epoch(self, epoch, loss=None):
+        self.cluster.set_epoch(epoch, loss=loss)
 
     def reset_cache(self):
         self.P.reset_cache()
@@ -39,7 +42,6 @@ class SGC(torch.nn.Module):
     def transform(self, x: Tensor, is_cluster: bool):
         if is_cluster == True:
             x, index = self.cluster(x)
-            print(x.size())
             x = self.lin1(x).relu()
             x = self.lin2(x)
             x = self.reconstruct(x, index)

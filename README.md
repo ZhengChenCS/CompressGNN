@@ -170,3 +170,55 @@ bash run.sh
 
 
 
+
+## Transformation compression and epoch reuse
+
+Rebuild the runtime extension after updating the Python layers and CUDA sources.
+Use the CUDA toolkit matching the installed PyTorch build (the tested environment
+uses PyTorch 1.13.1+cu116 and CUDA 11.6).
+
+```python
+from CompressgnnCluster import Compressgnn_Cluster
+from CompressgnnReconstruct import Compressgnn_Reconstruct
+
+cluster = Compressgnn_Cluster(in_feature=128, param_H=16,
+                             refresh_interval=5).cuda()
+reconstruct = Compressgnn_Reconstruct()
+# At the beginning of each zero-based training epoch:
+cluster.set_epoch(epoch)
+representatives, index = cluster(features, cache_key="graph-and-node-order")
+output = reconstruct(linear(representatives), index)
+```
+
+The module caches assignments and counts, and recomputes mean representatives
+from the current input on every call. The backward pass differentiates those
+means with assignments held fixed. The random projection matrix is a buffer,
+not an optimizer parameter. Recreate optimizer groups when migrating an old
+checkpoint that included this matrix as a parameter.
+
+- `refresh_interval=1` is the default. Larger intervals require `set_epoch(e)`
+  or `forward(..., epoch=e)` and validation of training quality.
+- Call `train()` / `eval()` as usual; their assignment caches are separate.
+  For a new graph or changed node ordering, pass a different `cache_key` or
+  call `reset_cache()`. Loading weights or moving device/dtype invalidates caches.
+- Consecutive shared Linear/ReLU operations can run on representatives before
+  one reconstruction. Reconstruct before node-mixing operations or independent
+  node-level dropout. `reconstruct(reps, index, bias=bias, activation="relu")`
+  optionally fuses bias and ReLU on CUDA.
+- GCN exposes `use_transformation=True`, `refresh_interval`, and `set_epoch`;
+  its default remains propagation-only. SGC and `gcn_trans` expose the epoch API.
+- Optional `refresh_policy="loss"` requires positive `tau_loss`, `q_min`,
+  `q_max`, and `set_epoch(epoch, loss=previous_training_loss)` with a host scalar.
+  This changes assignment refresh frequency, not the switch to exact training.
+- Cached state is not serialized; save refresh settings with training configs.
+  The optimized autograd paths support first-order gradients only. Reuse does
+  not guarantee unchanged training accuracy.
+
+Run the transformation regression checks after building the extension:
+
+```bash
+python tests/test_transformation.py
+```
+
+The checks cover CPU/CUDA mean gradients, LSH assignments, epoch/cache behavior,
+CUDA streams, fused reconstruction, and double-precision gradient checks.

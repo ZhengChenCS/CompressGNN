@@ -11,20 +11,24 @@ from metric import batch_distance
 from typing import Dict, List, Optional, Tuple, Union
 
 class GCN(torch.nn.Module):
-    def __init__(self, in_features, out_features, param_H=1,_cache=True, _index_cache=False):
+    def __init__(self, in_features, out_features, param_H=1,_cache=True, _index_cache=False, refresh_interval=1):
         super().__init__()
         self.lin1 = torch.nn.Linear(in_features=in_features, out_features=in_features, bias=True)
         self.P1 = SLPropagate()
         self.P2 = SLPropagate()
         self.lin2 = torch.nn.Linear(in_features=in_features, out_features=out_features, bias=True)
-        self.cluster1 = Compressgnn_Cluster(in_feature=in_features, param_H=param_H+9, training=True, cache=_cache, index_cache=_index_cache)
-        self.cluster2 = Compressgnn_Cluster(in_feature=in_features, param_H=param_H+10, training=True, cache=_cache, index_cache=_index_cache)
+        self.cluster1 = Compressgnn_Cluster(in_feature=in_features, param_H=param_H+9, training=True, cache=_cache, index_cache=_index_cache, refresh_interval=refresh_interval)
+        self.cluster2 = Compressgnn_Cluster(in_feature=in_features, param_H=param_H+10, training=True, cache=_cache, index_cache=_index_cache, refresh_interval=refresh_interval)
         self.reconstruct = Compressgnn_Reconstruct()
     
     def reset_parameters():
         self.lin1.reset_parameters()
         self.lin2.reset_parameters()
     
+    def set_epoch(self, epoch, loss=None):
+        self.cluster1.set_epoch(epoch, loss=loss)
+        self.cluster2.set_epoch(epoch, loss=loss)
+
     def reset_cache(self):
         self.cluster1.reset_cache()
         self.cluster2.reset_cache()
